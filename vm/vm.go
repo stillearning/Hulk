@@ -17,6 +17,9 @@ type VM struct {
 	sp    int
 }
 
+var True = &object.Boolean{Value: true}
+var False = &object.Boolean{Value: false}
+
 func New(bytecode *compiler.Bytecode) *VM {
 	return &VM{
 		instructions: bytecode.Instructions,
@@ -46,14 +49,28 @@ func (vm *VM) Run() error {
 			if err != nil {
 				return err
 			}
-		case code.OpAdd:
-			right := vm.pop()
-			left := vm.pop()
-			leftVal := left.(*object.Integer).Value
-			rightVal := right.(*object.Integer).Value
+		case code.OpAdd, code.OpSub, code.OpMul, code.OpDiv:
+			err := vm.executeBinaryOperations(op)
 
-			result := leftVal + rightVal
-			vm.push(&object.Integer{Value: result})
+			if err != nil {
+				return err
+			}
+
+		case code.OpTrue:
+			err := vm.push(True)
+
+			if err != nil {
+				return err
+			}
+
+		case code.OpFalse:
+			err := vm.push(False)
+
+			if err != nil {
+				return err
+			}
+		case code.OpPop:
+			vm.pop()
 		}
 	}
 	return nil
@@ -74,4 +91,45 @@ func (vm *VM) pop() object.Object {
 	o := vm.stack[vm.sp-1]
 	vm.sp--
 	return o
+}
+
+func (vm *VM) LastPoppedStackElem() object.Object {
+	return vm.stack[vm.sp]
+}
+
+func (vm *VM) executeBinaryOperations(op code.Opcode) error {
+	right := vm.pop()
+	left := vm.pop()
+
+	leftType := right.Type()
+	rightType := left.Type()
+
+	if leftType == object.INTEGER_OBJ && rightType == object.INTEGER_OBJ {
+		return vm.executeBinaryIntegerOperations(op, left, right)
+	}
+
+	return fmt.Errorf("unssuported types for binary operations: %s %s", leftType, rightType)
+}
+
+func (vm *VM) executeBinaryIntegerOperations(op code.Opcode, left, right object.Object) error {
+	leftVal := left.(*object.Integer).Value
+	rightVal := right.(*object.Integer).Value
+
+	var result int64
+
+	switch op {
+	case code.OpAdd:
+		result = leftVal + rightVal
+	case code.OpSub:
+		result = leftVal - rightVal
+	case code.OpMul:
+		result = leftVal * rightVal
+	case code.OpDiv:
+		result = leftVal / rightVal
+	default:
+		return fmt.Errorf("unkown integer operator: %d", op)
+	}
+
+	return vm.push(&object.Integer{Value: result})
+
 }
