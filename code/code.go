@@ -22,6 +22,10 @@ const (
 	OpEqual
 	OpNotEqual
 	OpGreaterThan
+	OpMinus
+	OpBang
+	OpJumpNotTruthy
+	OpJump
 )
 
 type Definition struct {
@@ -30,17 +34,21 @@ type Definition struct {
 }
 
 var definitions = map[Opcode]*Definition{
-	OpConstant:    {"OpConstant", []int{2}}, //used for constant and operand is 2 byte wide
-	OpAdd:         {"OpAdd", []int{}},       //used for addition and no operand
-	OpPop:         {"OpPop", []int{}},       //used for opping after each expression and no operand
-	OpSub:         {"OpSub", []int{}},
-	OpMul:         {"OpMul", []int{}},
-	OpDiv:         {"OpDiv", []int{}},
-	OpTrue:        {"OpTrue", []int{}},
-	OpFalse:       {"OpFalse", []int{}},
-	OpEqual:       {"OpEqual", []int{}},
-	OpNotEqual:    {"OpNotEqual", []int{}},
-	OpGreaterThan: {"OpGreaterThan", []int{}},
+	OpConstant:      {"OpConstant", []int{2}}, //used for constant and operand is 2 byte wide
+	OpAdd:           {"OpAdd", []int{}},       //used for addition and no operand
+	OpPop:           {"OpPop", []int{}},       //used for opping after each expression and no operand
+	OpSub:           {"OpSub", []int{}},
+	OpMul:           {"OpMul", []int{}},
+	OpDiv:           {"OpDiv", []int{}},
+	OpTrue:          {"OpTrue", []int{}},
+	OpFalse:         {"OpFalse", []int{}},
+	OpEqual:         {"OpEqual", []int{}},
+	OpNotEqual:      {"OpNotEqual", []int{}},
+	OpGreaterThan:   {"OpGreaterThan", []int{}},
+	OpMinus:         {"OpMinus", []int{}},
+	OpBang:          {"OpBang", []int{}},
+	OpJumpNotTruthy: {"OpJumpNotTruthy", []int{2}}, //if 'if' condition is not correct then it has operand that tells vm to jump to this instruction
+	OpJump:          {"OpJump", []int{2}},          //if 'if' is correct then this makes else part skip with operand to jump to
 }
 
 func Lookup(op byte) (*Definition, error) {
