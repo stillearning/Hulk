@@ -141,17 +141,40 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return err
 		}
 
-		c.emit(code.OpJumpNotTruthy, 9999)
+		jumpNotTruthyPos := c.emit(code.OpJumpNotTruthy, 9999)
 
 		err = c.Compile(node.Consequence)
+
+		if c.lastInstructionPop() {
+			c.removeLastPop()
+		}
 
 		if err != nil {
 			return err
 		}
 
-		if c.lastInstructionPop() {
-			c.removeLastPop()
+		jumpPos := c.emit(code.OpJump, 9999)
+
+		//we will know the actual pos to jump to if not truthy because now we have compiled the if block
+		afterConsequencePos := len(c.instructions)
+		c.changeOperand(jumpNotTruthyPos, afterConsequencePos)
+
+		if node.Alternative == nil {
+			c.emit(code.OpNull)
+		} else {
+			err := c.Compile(node.Alternative)
+
+			if err != nil {
+				return err
+			}
+
+			if c.lastInstructionPop() {
+				c.removeLastPop()
+			}
 		}
+
+		afterAlternative := len(c.instructions)
+		c.changeOperand(jumpPos, afterAlternative)
 
 	case *ast.BlockStatement:
 		for _, s := range node.Statements {
