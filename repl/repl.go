@@ -3,6 +3,7 @@ package repl
 import (
 	"Hulk/compiler"
 	"Hulk/lexer"
+	"Hulk/object"
 	"Hulk/parser"
 	"Hulk/vm"
 	"bufio"
@@ -15,8 +16,13 @@ const PROMPT = "#>"
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	// env := object.NewEnvironment()
+
+	constants := []object.Object{}
+	globals := make([]object.Object, vm.GlobalSize)
+	symbolTable := compiler.NewSymbolTable()
+
 	for {
-		fmt.Printf(PROMPT)
+		fmt.Print(PROMPT)
 		scanned := scanner.Scan()
 		if !scanned {
 			return
@@ -37,14 +43,17 @@ func Start(in io.Reader, out io.Writer) {
 		// 	io.WriteString(out, "\n")
 		// }
 
-		comp := compiler.New()
+		comp := compiler.NewWithState(symbolTable, constants)
 		err := comp.Compile(program)
 		if err != nil {
 			fmt.Fprintf(out, "Woops! Compilation failed: \n %s\n", err)
 			continue
 		}
 
-		machine := vm.New(comp.Bytecode())
+		code := comp.Bytecode()
+		constants = code.Constants
+
+		machine := vm.NewWithGlobalStore(code, globals)
 		err = machine.Run()
 		if err != nil {
 			fmt.Fprintf(out, "Woops! Bytecode failed: \n %s\n", err)

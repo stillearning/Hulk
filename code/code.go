@@ -27,6 +27,8 @@ const (
 	OpJumpNotTruthy
 	OpJump
 	OpNull
+	OpSetGlobal
+	OpGetGlobal
 )
 
 type Definition struct {
@@ -51,6 +53,8 @@ var definitions = map[Opcode]*Definition{
 	OpJumpNotTruthy: {"OpJumpNotTruthy", []int{2}}, //if 'if' condition is not correct then it has operand that tells vm to jump to this instruction
 	OpJump:          {"OpJump", []int{2}},          //if 'if' is correct then this makes else part skip with operand to jump to
 	OpNull:          {"OpNull", []int{}},
+	OpSetGlobal:     {"OpSetGlobal", []int{2}},
+	OpGetGlobal:     {"OpGetGlobal", []int{2}},
 }
 
 func Lookup(op byte) (*Definition, error) {
