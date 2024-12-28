@@ -489,7 +489,10 @@ func TestCompilerScopes(t *testing.T) {
 		t.Errorf("scopeIndex wrong. got=%d, want=%d", compiler.scopeIndex, 0)
 	}
 
+	globalSymbolTable := compiler.symbolTable
+
 	compiler.emit(code.OpMul)
+
 	compiler.enterScope()
 	if compiler.scopeIndex != 1 {
 		t.Errorf("scopeIndex wrong. got=%d, want=%d", compiler.scopeIndex, 1)
@@ -507,10 +510,22 @@ func TestCompilerScopes(t *testing.T) {
 			last.Opcode, code.OpSub)
 	}
 
+	if compiler.symbolTable.Outer != globalSymbolTable {
+		t.Errorf("compiler did not enclose symbolTable")
+	}
+
 	compiler.leaveScope()
 	if compiler.scopeIndex != 0 {
 		t.Errorf("scopeIndex wrong. got=%d, want=%d",
 			compiler.scopeIndex, 0)
+	}
+
+	if compiler.symbolTable != globalSymbolTable {
+		t.Errorf("compiler did not restore global symbol table")
+	}
+
+	if compiler.symbolTable.Outer != nil {
+		t.Errorf("compiler modified global symbol table incorrectly")
 	}
 
 	compiler.emit(code.OpAdd)
@@ -532,6 +547,120 @@ func TestCompilerScopes(t *testing.T) {
 	}
 }
 
+func TestFunctionCalls(t *testing.T) {
+	tests := []compilerTestCase{
+		{
+			input: `fn() { 24 }();`,
+			expectedConstants: []interface{}{
+				24,
+				[]code.Instructions{
+					code.Make(code.OpConstant, 0), // The literal "24"
+					code.Make(code.OpReturnValue),
+				},
+			},
+			expectedInstructions: []code.Instructions{
+				code.Make(code.OpConstant, 1), // The compiled function
+				code.Make(code.OpCall),
+				code.Make(code.OpPop),
+			},
+		},
+		{
+			input: `
+	let noArg = fn() { 24 };
+	noArg();
+	`,
+			expectedConstants: []interface{}{
+				24,
+				[]code.Instructions{
+					code.Make(code.OpConstant, 0), // The literal "24"
+					code.Make(code.OpReturnValue),
+				},
+			},
+			expectedInstructions: []code.Instructions{
+				code.Make(code.OpConstant, 1), // The compiled function
+				code.Make(code.OpSetGlobal, 0),
+				code.Make(code.OpGetGlobal, 0),
+				code.Make(code.OpCall),
+				code.Make(code.OpPop),
+			},
+		},
+	}
+	runCompilerTests(t, tests)
+}
+
+func TestLetStatementScopes(t *testing.T) {
+	tests := []compilerTestCase{
+		{
+			input: `
+	let num = 55;
+	fn() { num }
+	`,
+			expectedConstants: []interface{}{
+				55,
+				[]code.Instructions{
+					code.Make(code.OpGetGlobal, 0),
+					code.Make(code.OpReturnValue),
+				},
+			},
+			expectedInstructions: []code.Instructions{
+				code.Make(code.OpConstant, 0),
+				code.Make(code.OpSetGlobal, 0),
+				code.Make(code.OpConstant, 1),
+				code.Make(code.OpPop),
+			},
+		},
+		{
+			input: `
+	fn() {
+	let num = 55;
+	num
+	}
+	`,
+			expectedConstants: []interface{}{
+				55,
+				[]code.Instructions{
+					code.Make(code.OpConstant, 0),
+					code.Make(code.OpSetLocal, 0),
+					code.Make(code.OpGetLocal, 0),
+					code.Make(code.OpReturnValue),
+				},
+			},
+			expectedInstructions: []code.Instructions{
+				code.Make(code.OpConstant, 1),
+				code.Make(code.OpPop),
+			},
+		},
+		{
+			input: `
+	fn() {
+	let a = 55;
+	let b = 77;
+	a + b
+	}
+	`,
+			expectedConstants: []interface{}{
+				55,
+				77,
+				[]code.Instructions{
+					code.Make(code.OpConstant, 0),
+					code.Make(code.OpSetLocal, 0),
+					code.Make(code.OpConstant, 1),
+					code.Make(code.OpSetLocal, 1),
+					code.Make(code.OpGetLocal, 0),
+					code.Make(code.OpGetLocal, 1),
+					code.Make(code.OpAdd),
+					code.Make(code.OpReturnValue),
+				},
+			},
+			expectedInstructions: []code.Instructions{
+				code.Make(code.OpConstant, 2),
+				code.Make(code.OpPop),
+			},
+		},
+	}
+	runCompilerTests(t, tests)
+}
+
 func runCompilerTests(t *testing.T, tests []compilerTestCase) {
 	t.Helper()
 
@@ -551,7 +680,7 @@ func runCompilerTests(t *testing.T, tests []compilerTestCase) {
 			t.Fatalf("testInstructions failed: %s", err)
 		}
 
-		err = testConstants(t, tt.expectedConstants, bytecode.Constants)
+		err = testConstants(tt.expectedConstants, bytecode.Constants)
 		if err != nil {
 			t.Fatalf("testConstants failed: %s", err)
 		}
@@ -584,7 +713,7 @@ func concatInstructions(s []code.Instructions) code.Instructions {
 	return out
 }
 
-func testConstants(t *testing.T, expected []interface{}, actual []object.Object) error {
+func testConstants(expected []interface{}, actual []object.Object) error {
 	if len(expected) != len(actual) {
 		return fmt.Errorf("wrong number of constants. got=%d, want=%d", len(actual), len(expected))
 	}
